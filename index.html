@@ -1,77 +1,1054 @@
 <!DOCTYPE html>
-
-<html lang="en">
-
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="دليل الملاحة الذكي إلى منتزه بلدية سلفيت - تحديد الموقع التلقائي ومسارات حقيقية">
+<title>منتزه بلدية سلفيت | GPS ملاحة ذكية</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+:root {
+    --primary: #cfffd1;
+    --primary-light: #7ee787;
+    --accent: #ff9800;
+    --danger: #e53935;
+    --info: #2196f3;
+    --bg-dark: #0a1f0f;
+    --bg-card: rgba(10,30,15,0.95);
+    --text: #fff;
+    --text-muted: #aaa;
+    --border: rgba(255,255,255,0.1);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    -webkit-tap-highlight-color: transparent;
+}
+#app { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; }
 
-  <!-- Give the page a title -->
-  <title>Ramallah Waste Containers</title>
+/* Header */
+#header {
+    background: var(--bg-card);
+    backdrop-filter: blur(16px);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 1000;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+#header h1 { font-size: 15px; color: var(--primary-light); display: flex; align-items: center; gap: 8px; font-weight: 600; }
+#header .icon { font-size: 20px; }
+#header .subtitle { font-size: 11px; color: var(--text-muted); }
 
-  <!-- Add a link to the Leaflet CSS library so you can reference it for styling your map -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+/* Map */
+#map { flex: 1; z-index: 1; }
 
-  <!-- All the CSS code goes inside the style tags below -->
-  <style>
-    /* style the body */
-    body {
-      margin: 0px;
-      height: 100%;
-      width: 100%;
-    }
+/* Custom Leaflet Popups */
+.leaflet-popup-content-wrapper {
+    background: var(--bg-card) !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(126,231,135,0.2);
+    border-radius: 16px !important;
+    color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.leaflet-popup-tip { background: var(--bg-card) !important; border: 1px solid rgba(126,231,135,0.2); }
+.leaflet-popup-content { margin: 14px 18px !important; font-size: 13px; line-height: 1.7; }
+.leaflet-popup-content h3 { color: var(--primary-light); margin-bottom: 8px; font-size: 15px; }
+.leaflet-popup-close-button { color: var(--text) !important; font-size: 20px !important; }
 
-    /* style the map */
-    #map {
-      position: absolute;
-      width: 100%;
-      top: 0px;
-      bottom: 0;
-    }
-  </style>
+/* Status Bar */
+#statusBar {
+    position: absolute;
+    top: 55px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    transition: all 0.3s;
+}
+#statusBar.locating { background: rgba(255,193,7,0.15); border-color: #ffc107; color: #ffc107; display: flex; }
+#statusBar.found { background: rgba(46,125,50,0.2); border-color: var(--primary-light); color: var(--primary-light); display: flex; }
+#statusBar.error { background: rgba(229,57,53,0.15); border-color: #e53935; color: #e53935; display: flex; }
+#statusBar.route { background: var(--bg-card); border-color: var(--primary-light); color: var(--text); display: flex; flex-direction: column; text-align: center; gap: 4px; padding: 10px 20px; }
+#statusBar .route-title { color: var(--primary-light); font-weight: bold; font-size: 13px; }
+#statusBar .route-detail { color: var(--text-muted); font-size: 11px; }
+
+/* Voice Indicator */
+#voiceIndicator {
+    position: absolute;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(194, 255, 197, 0.9);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    animation: pulse 1.5s infinite;
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* Controls Overlay */
+#controlsOverlay {
+    position: absolute;
+    bottom: 12px;
+    left: 8px;
+    right: 8px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+.control-row { display: flex; gap: 6px; justify-content: center; pointer-events: auto; flex-wrap: wrap; }
+.btn {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: 24px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    user-select: none;
+    pointer-events: auto;
+    font-family: inherit;
+}
+.btn:hover, .btn:active { background: rgba(126,231,135,0.15); border-color: var(--primary-light); transform: translateY(-1px); }
+.btn.active { background: rgba(126,231,135,0.2); border-color: var(--primary-light); color: var(--primary-light); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary), #1b5e20);
+    border: none;
+    font-weight: 600;
+    padding: 12px 24px;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(46,125,50,0.3);
+}
+.btn-primary:hover, .btn-primary:active { background: linear-gradient(135deg, #388e3c, var(--primary)); box-shadow: 0 6px 16px rgba(46,125,50,0.4); }
+.btn-gps {
+    background: linear-gradient(135deg, #1565c0, #0d47a1);
+    border: none;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(21,101,192,0.3);
+}
+.btn-gps:hover, .btn-gps:active { background: linear-gradient(135deg, #1976d2, #1565c0); box-shadow: 0 6px 16px rgba(21,101,192,0.4); }
+.btn-gps.pulsing { animation: gpsPulse 1.5s infinite; }
+@keyframes gpsPulse { 0%, 100% { box-shadow: 0 4px 12px rgba(21,101,192,0.3); } 50% { box-shadow: 0 4px 20px rgba(21,101,192,0.6); } }
+
+/* Navigation Panel */
+#navPanel {
+    position: absolute;
+    top: 55px;
+    left: 8px;
+    right: 8px;
+    background: var(--bg-card);
+    backdrop-filter: blur(16px);
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    z-index: 1000;
+    display: none;
+    max-height: 280px;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+#navPanel .nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+#navPanel .nav-header h3 { color: var(--primary-light); font-size: 14px; }
+#navPanel .nav-header .close { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
+#navPanel .nav-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+#navPanel .nav-step:last-child { border-bottom: none; }
+#navPanel .nav-step.active { background: rgba(126,231,135,0.08); margin: 0 -14px; padding: 10px 14px; border-radius: 10px; }
+#navPanel .step-icon {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+#navPanel .step-icon.destination { background: #e91e63; }
+#navPanel .step-icon.start { background: var(--info); }
+#navPanel .step-content { flex: 1; }
+#navPanel .step-text { font-size: 13px; line-height: 1.5; }
+#navPanel .step-text strong { color: var(--primary-light); }
+#navPanel .step-dist { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+/* Park Modal */
+#parkModal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    backdrop-filter: blur(5px);
+}
+#parkModalContent {
+    background: linear-gradient(180deg, #1a3d1a 0%, #0d2818 100%);
+    border-radius: 20px;
+    border: 1px solid rgba(126,231,135,0.2);
+    max-width: 420px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+#parkModal .close-btn {
+    position: sticky;
+    top: 12px;
+    left: 12px;
+    float: left;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    z-index: 10;
+    margin: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+#parkModal .close-btn:hover { background: rgba(229,57,53,0.8); }
+.park-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 20px 20px 0 0;
+    display: block;
+}
+.park-info { padding: 20px; }
+.park-info h2 { color: var(--primary-light); margin-bottom: 12px; font-size: 20px; }
+.park-info p { color: #ccc; font-size: 13px; line-height: 1.7; margin-bottom: 16px; }
+.info-section { margin-bottom: 16px; }
+.info-section h3 { color: #a5d6a7; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.info-section ul { list-style: none; padding: 0; }
+.info-section li { color: #ddd; font-size: 12px; padding: 5px 0; padding-right: 20px; position: relative; }
+.info-section li::before { content: "✓"; position: absolute; right: 0; color: var(--primary-light); font-weight: bold; }
+
+/* Loading overlay */
+#loadingOverlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg-dark);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    transition: opacity 0.5s;
+}
+#loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+.loader {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(126,231,135,0.2);
+    border-top-color: var(--primary-light);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loadingOverlay p { color: var(--text-muted); font-size: 14px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+</style>
 </head>
-
 <body>
-  <!-- the map -->
-  <div id="map"></div>
 
-  <!-- Add a link to the Leaflet JavaScript library so you can reference it for building your map -->
-  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+<!-- Loading -->
+<div id="loadingOverlay">
+    <div class="loader"></div>
+    <p>جاري تحميل الخريطة...</p>
+</div>
 
-  <!-- Add a link to the jQuery JavaScript library so you can leverage ajax methods to load your data -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<div id="app">
+    <div id="header">
+        <h1><span class="icon">🌳</span> منتزه بلدية سلفيت</h1>
+        <span class="subtitle">GPS ملاحة ذكية</span>
+    </div>
+    <div id="map"></div>
 
-  <!-- All JavaScript goes inside the script tags below -->
-  <script>
-    // define map options
-    const mapOptions = {
-      zoomSnap: 0.5,  // this allows fractional zooming
-      center: [31.9045, 35.2045], // center the map on the coordinates for Ramallah
-      zoom: 17.5, // set the initial zoom
-    };
+    <div id="statusBar"></div>
+    <div id="voiceIndicator">🔊 جاري التوجيه الصوتي...</div>
 
-    // define the map with the options above
-    const map = L.map("map", mapOptions);
+    <div id="navPanel">
+        <div class="nav-header">
+            <h3>📋 خطوات المسار</h3>
+            <button class="close" onclick="toggleNavPanel()">×</button>
+        </div>
+        <div id="navSteps"></div>
+    </div>
 
-// add a base map to the map
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  subdomains: 'abcd',
-  maxZoom: 20
-}).addTo(map);
+    <div id="controlsOverlay">
+        <div class="control-row">
+            <button class="btn btn-gps" id="gpsBtn" onclick="locateMe()">📡 حدد موقعي</button>
+            <button class="btn btn-primary" id="navBtn" onclick="startNavigation()" style="display:none;">🚗 ابدأ الملاحة</button>
+            <button class="btn" id="voiceBtn" onclick="toggleVoice()">🔊 صوتي</button>
+            <button class="btn" onclick="showParkDetails()">🌳 المنتزه</button>
+        </div>
+        <div class="control-row">
+            <button class="btn" onclick="toggleNavPanel()">📋 الخطوات</button>
+            <button class="btn" onclick="toggleMapLayer()">🗺️ القمر الصناعي</button>
+            <button class="btn" onclick="resetAll()">🔄 إعادة</button>
+        </div>
+    </div>
+</div>
 
+<div id="parkModal" onclick="if(event.target===this)closeParkModal()">
+    <div id="parkModalContent">
+        <button class="close-btn" onclick="closeParkModal()">×</button>
+        <img src="https://images.alwatanvoice.com/72a031200250e86103dde975ee539fae1f5207b3.jpg" alt="منتزه بلدية سلفيت" class="park-image">
+        <div class="park-info">
+            <h2>🌳 منتزه بلدية سلفيت</h2>
+            <p>منتزه بلدية سلفيت هو وجهة عائلية مميزة تقدم مساحات خضراء واسعة ومناطق ترفيهية للأطفال والعائلات. يتميز المنتزه بتصميمه الجميل والخدمات المتكاملة.</p>
+            <div class="info-section">
+                <h3>🎯 الخدمات المتوفرة</h3>
+                <ul>
+                    <li>ملاعب أطفال وحدائق</li>
+                    <li>مقاعد ومظلات للجلوس</li>
+                    <li>مساحات خضراء واسعة</li>
+                    <li>ممرات للمشي والرياضة</li>
+                    <li>مواقف سيارات</li>
+                    <li>إنارة ليلية</li>
+                </ul>
+            </div>
+            <div class="info-section">
+                <h3>☕ الكافتيريات والمقاهي</h3>
+                <ul>
+                    <li>كافتيريا المنتزه الرئيسية</li>
+                    <li>عربات المأكولات الخفيفة</li>
+                    <li>مقهى الحديقة</li>
+                </ul>
+            </div>
+            <div class="info-section">
+                <h3>📍 أوقات الزيارة</h3>
+                <ul>
+                    <li>طوال أيام الأسبوع</li>
+                    <li>من الساعة 8 صباحاً حتى 10 مساءً</li>
+                    <li>الدخول مجاني</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
 
-// use jquery to load GeoJSON data
+<script>
+// ===== DATA =====
+// Node coordinates are real WGS84 lat/lng, converted from the surveyed
+// EPSG:28191 (Palestine 1923 / Palestine Grid) data in Junctions.json,
+// Park.json and route.json using the official EPSG:28191 -> WGS84 transform
+// (Cassini-Soldner projection, Clarke 1880 (Benoit) ellipsoid). The previous
+// version of this file used a fake "normalized 0-1" coordinate system with
+// an arbitrary linear stretch (LAT_CENTER/LNG_CENTER/LAT_SCALE/LNG_SCALE)
+// that did not correspond to any real location - that has been removed.
+const nodes = [{"id": 0, "lat": 32.0855715, "lng": 35.1890218, "name": "دوار شرقي - عيسى عودة", "type": "junction"}, {"id": 1, "lat": 32.0767161, "lng": 35.1806929, "name": "مفترق خربة قيس - فرخة", "type": "junction"}, {"id": 2, "lat": 32.0943327, "lng": 35.1659737, "name": "مفترق المدخل الشمالي", "type": "junction"}, {"id": 3, "lat": 32.0844958, "lng": 35.1664301, "name": "المدخل الغربي - شارع المطوي", "type": "junction"}, {"id": 4, "lat": 32.0874998, "lng": 35.183349, "name": "منتزه بلدية سلفيت", "type": "park"}, {"id": 5, "lat": 32.0884081, "lng": 35.1776168, "name": "تقاطع غربي", "type": "connection"}, {"id": 6, "lat": 32.0857028, "lng": 35.1899714, "name": "تقاطع شمالي شرقي", "type": "connection"}];
+const allPaths = [{"id": 0, "points": [[32.0722491, 35.181605], [32.0726857, 35.1814881], [32.0731607, 35.1814012], [32.0736294, 35.1813823], [32.0740916, 35.1813558], [32.0746188, 35.1811631], [32.0750707, 35.180912], [32.0754507, 35.1807068], [32.0757711, 35.1805596], [32.0760053, 35.1805088], [32.0761903, 35.1805327], [32.0765282, 35.1806608], [32.0767035, 35.1806911], [32.0767161, 35.1806929]]}, {"id": 1, "points": [[32.0727797, 35.1713471], [32.0728185, 35.1722632], [32.0728596, 35.1725626], [32.0729194, 35.1727385], [32.0731333, 35.173194], [32.0734557, 35.1739519], [32.0736157, 35.1742987], [32.0739842, 35.1749496], [32.0744971, 35.1753201], [32.075583, 35.1755496], [32.0757037, 35.1755936], [32.0757938, 35.1756914], [32.0758552, 35.1759276], [32.0759202, 35.176652], [32.0759228, 35.1770681], [32.0757942, 35.1775978], [32.0757421, 35.1778657], [32.0757354, 35.1780396], [32.0757547, 35.1782104], [32.0758811, 35.178596], [32.0761243, 35.17918], [32.0764962, 35.1800792], [32.0767145, 35.1806869], [32.0767161, 35.1806929]]}, {"id": 2, "points": [[32.0767161, 35.1806929], [32.0767361, 35.1807453], [32.0768268, 35.1810545], [32.0769999, 35.1819273], [32.0772055, 35.1827046], [32.0773391, 35.1830902], [32.0775837, 35.183691], [32.0779804, 35.1844963], [32.0781738, 35.1849147], [32.078418, 35.1854039], [32.0787625, 35.1861666], [32.079055, 35.186644], [32.0793242, 35.1869021], [32.0800416, 35.1872915], [32.0807037, 35.1876802], [32.0813959, 35.1880218], [32.0825043, 35.1882336], [32.0838028, 35.1884038], [32.0840403, 35.1884452], [32.0855715, 35.1890218]]}, {"id": 3, "points": [[32.0841585, 35.1937547], [32.0841663, 35.1933701], [32.0841814, 35.1926658], [32.0842188, 35.1922428], [32.0842517, 35.1920281], [32.0842359, 35.1917918], [32.0838828, 35.1904244], [32.0838508, 35.1901506], [32.0838382, 35.1896391], [32.083842, 35.1896055], [32.0848234, 35.1900127], [32.0849943, 35.1900585], [32.0851214, 35.1900684], [32.085293, 35.1900684], [32.0854192, 35.1900446], [32.0857028, 35.1899714]]}, {"id": 4, "points": [[32.0844958, 35.1664301], [32.084481, 35.1671665], [32.0842705, 35.1679796], [32.084065, 35.1683861], [32.0836641, 35.1693642], [32.0835089, 35.1704718], [32.0834752, 35.1711246], [32.0834496, 35.1716826], [32.0832797, 35.172448], [32.083068, 35.17327], [32.0831243, 35.1736806], [32.0833113, 35.174238], [32.0837696, 35.174759], [32.0839216, 35.1749544], [32.0840347, 35.1751378], [32.0840457, 35.1751611], [32.0840904, 35.1750909], [32.084205, 35.1748676], [32.084352, 35.1746461], [32.0844682, 35.1744787], [32.0845161, 35.1743835], [32.0845398, 35.1743167], [32.0847062, 35.174294], [32.0849309, 35.1742702], [32.085047, 35.1742662], [32.0851543, 35.1742695], [32.0853751, 35.1743434], [32.0861937, 35.1747824], [32.0862251, 35.17481], [32.0862564, 35.1751933], [32.0862683, 35.1754341], [32.0862236, 35.1761173], [32.0862152, 35.1762151], [32.0861861, 35.1762149], [32.0861392, 35.1762415], [32.0861058, 35.1763073], [32.0861021, 35.1763617], [32.086121, 35.1764294], [32.0861425, 35.1764629], [32.0861964, 35.1764857], [32.0862653, 35.1764831], [32.0863132, 35.176435], [32.0863407, 35.1763762], [32.0864355, 35.1764015], [32.0865868, 35.1764742], [32.08703, 35.1766813], [32.0874231, 35.1769175], [32.0876703, 35.1770857], [32.0880898, 35.1774176], [32.0881964, 35.1774933], [32.0882904, 35.1775762], [32.0884081, 35.1776168]]}, {"id": 6, "points": [[32.0857028, 35.1899714], [32.0855715, 35.1890218]]}, {"id": 7, "points": [[32.0870391, 35.194275], [32.0869918, 35.1938503], [32.086978, 35.1936777], [32.0869275, 35.1933279], [32.0868011, 35.1929111], [32.0864513, 35.1918996], [32.0862146, 35.1913468], [32.0860226, 35.1909499], [32.0858434, 35.1905368], [32.0857702, 35.1902897], [32.0857028, 35.1899714]]}, {"id": 8, "points": [[32.0943327, 35.1659737], [32.0939651, 35.1662803], [32.0932505, 35.1673593], [32.0926982, 35.1682452], [32.0917803, 35.1696718], [32.0912339, 35.1701739], [32.0907225, 35.1703672], [32.09025, 35.1704446], [32.0897857, 35.1705799], [32.0895495, 35.1707779], [32.089375, 35.1709951], [32.0891799, 35.1714126], [32.0890772, 35.1716891], [32.0889616, 35.1721726], [32.0888539, 35.1725788], [32.0887967, 35.1726935], [32.0885371, 35.1731291], [32.0884269, 35.1733251], [32.0882234, 35.1737561], [32.0881195, 35.1741009], [32.0880452, 35.1744912], [32.0880388, 35.1747588], [32.0881855, 35.1761944], [32.0884081, 35.1776168]]}, {"id": 9, "points": [[32.0855715, 35.1890218], [32.0852634, 35.1870337], [32.0856865, 35.1869419], [32.0859844, 35.1868043], [32.0862679, 35.1866281], [32.087147, 35.185904], [32.0872477, 35.1857629], [32.0872029, 35.1856763], [32.0871362, 35.1854989], [32.0870171, 35.1851167], [32.086921, 35.1846827], [32.0868697, 35.18438], [32.0868315, 35.1840897], [32.0868354, 35.1833762], [32.0868673, 35.1831928], [32.0874998, 35.183349]]}, {"id": 10, "points": [[32.0874998, 35.183349], [32.0879819, 35.1833651], [32.0884593, 35.1834307], [32.08858, 35.1830036], [32.088806, 35.1820259], [32.0888584, 35.1810251], [32.0888096, 35.1801016], [32.0886414, 35.1790697], [32.0884081, 35.1776168]]}];
+// Edge lengths are real distances in METERS, computed directly from the
+// EPSG:28191 (projected, metric) coordinates in route.json - no more fake
+// "normalized distance" values that had to be multiplied by made-up
+// calibration factors (the old code did minDist*8000 and distance*8.5,
+// both of which were guesses since the old coordinates weren't real).
+const adjData = {"0": [{"to": 1, "path_idx": 2, "length": 1389.2}, {"to": 6, "path_idx": 6, "length": 90.8}, {"to": 4, "path_idx": 9, "length": 768.2}], "1": [{"to": 0, "path_idx": 2, "length": 1389.2}], "2": [{"to": 5, "path_idx": 8, "length": 1417.4}], "3": [{"to": 5, "path_idx": 4, "length": 1635.0}], "4": [{"to": 0, "path_idx": 9, "length": 768.2}, {"to": 5, "path_idx": 10, "length": 665.7}], "5": [{"to": 3, "path_idx": 4, "length": 1635.0}, {"to": 2, "path_idx": 8, "length": 1417.4}, {"to": 4, "path_idx": 10, "length": 665.7}], "6": [{"to": 0, "path_idx": 6, "length": 90.8}]};
+const parkNodeId = 4;
 
+const junctionNames = {
+    0: "دوار شرقي - عيسى عودة",
+    1: "مفترق خربة قيس - فرخة",
+    2: "مفترق المدخل الشمالي",
+    3: "المدخل الغربي - شارع المطوي"
+};
 
-    $.getJSON("RamallahZones.json", function(RZ) {
-      L.geoJson(RZ).addTo(map);
+// Haversine distance in meters between two [lat,lng] points - used to find
+// the nearest junction to the user's real GPS position. This replaces the
+// old fake nx/ny inverse-transform which relied on the made-up
+// LAT_CENTER/LNG_CENTER/LAT_SCALE/LNG_SCALE constants.
+function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// ===== STATE =====
+let map;
+let osmLayer, satelliteLayer;
+let currentLayer = 'osm';
+let userMarker = null;
+let userPos = null;
+let userAccuracyCircle = null;
+let routeLayers = [];
+let routeArrowLayers = [];
+let voiceEnabled = false;
+let watchId = null;
+let currentRoute = null;
+let nearestJunctionId = null;
+let navPanelOpen = false;
+
+// ===== INIT =====
+window.onload = function() {
+    initMap();
+};
+
+function initMap() {
+    const parkNode = nodes.find(n => n.id === parkNodeId);
+    const parkLatLng = [parkNode.lat, parkNode.lng];
+
+    map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false
+    }).setView(parkLatLng, 15);
+
+    // Layers
+    osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: ''
     });
 
-    $.getJSON("wasteContainer.json", function(WC) {
-      L.geoJson(WC).addTo(map);
+    satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: ''
     });
 
-  </script>
+    osmLayer.addTo(map);
+
+    // Draw roads
+    drawRoads();
+
+    // Draw junctions
+    drawJunctions();
+
+    // Draw park
+    drawPark();
+
+    // Zoom control
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Hide loading
+    setTimeout(() => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }, 800);
+
+    // Auto-locate after map loads
+    setTimeout(() => { if (!userPos) locateMe(); }, 2000);
+}
+
+// ===== DRAW FUNCTIONS =====
+function drawRoads() {
+    for (const path of allPaths) {
+        const latlngs = path.points;
+        // Border
+        L.polyline(latlngs, {
+            color: '#555',
+            weight: 5,
+            opacity: 0.5
+        }).addTo(map);
+        // Main
+        L.polyline(latlngs, {
+            color: '#888',
+            weight: 2.5,
+            opacity: 0.7
+        }).addTo(map);
+    }
+}
+
+function drawJunctions() {
+    for (const node of nodes) {
+        if (node.type !== 'junction') continue;
+        const latlng = [node.lat, node.lng];
+
+        // Circle marker
+        L.circleMarker(latlng, {
+            radius: 9,
+            fillColor: '#ff9800',
+            color: '#fff',
+            weight: 2.5,
+            fillOpacity: 0.9
+        }).addTo(map).bindPopup(`<h3>🛣️ ${node.name}</h3><p>مفترق رئيسي على الطريق</p>`);
+
+        // Label
+        L.marker(latlng, {
+            icon: L.divIcon({
+                className: 'junction-label',
+                html: `<div style="color:#ff9800;font-size:11px;font-weight:bold;text-shadow:0 1px 4px rgba(0,0,0,0.9);white-space:nowrap;direction:rtl;">${node.name}</div>`,
+                iconSize: [140, 20],
+                iconAnchor: [70, -16]
+            })
+        }).addTo(map);
+    }
+}
+
+function drawPark() {
+    const parkNode = nodes.find(n => n.id === parkNodeId);
+    const latlng = [parkNode.lat, parkNode.lng];
+
+    // Pulse circle
+    L.circle(latlng, {
+        radius: 100,
+        fillColor: '#e91e63',
+        color: '#e91e63',
+        weight: 1,
+        fillOpacity: 0.08
+    }).addTo(map);
+
+    // Icon marker
+    const parkIcon = L.divIcon({
+        className: 'park-marker',
+        html: `<div style="background:linear-gradient(135deg,#e91e63,#c2185b);border:3px solid #fff;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(233,30,99,0.5);cursor:pointer;">🌳</div>`,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19]
+    });
+
+    const marker = L.marker(latlng, { icon: parkIcon }).addTo(map);
+    marker.bindPopup(`<h3>🌳 ${parkNode.name}</h3><p>اضغط لعرض التفاصيل</p>`);
+    marker.on('click', showParkDetails);
+
+    // Label
+    L.marker(latlng, {
+        icon: L.divIcon({
+            className: 'park-label',
+            html: `<div style="color:#e91e63;font-size:13px;font-weight:bold;text-shadow:0 1px 4px rgba(0,0,0,0.9);white-space:nowrap;direction:rtl;">${parkNode.name}</div>`,
+            iconSize: [160, 20],
+            iconAnchor: [80, -26]
+        })
+    }).addTo(map);
+}
+
+// ===== GPS LOCATION =====
+function locateMe() {
+    const status = document.getElementById('statusBar');
+    const btn = document.getElementById('gpsBtn');
+
+    status.style.display = 'flex';
+    status.className = 'locating';
+    status.innerHTML = '📡 جاري تحديد موقعك بالأقمار الصناعية...';
+    btn.classList.add('pulsing');
+
+    if (!navigator.geolocation) {
+        showStatus('error', '❌ GPS غير مدعوم في جهازك');
+        btn.classList.remove('pulsing');
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        onLocationFound,
+        onLocationError,
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+}
+
+function onLocationFound(position) {
+    const btn = document.getElementById('gpsBtn');
+    btn.classList.remove('pulsing');
+
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
+
+    userPos = { lat, lng, accuracy };
+
+    // Remove old markers
+    if (userMarker) map.removeLayer(userMarker);
+    if (userAccuracyCircle) map.removeLayer(userAccuracyCircle);
+
+    // Accuracy circle
+    userAccuracyCircle = L.circle([lat, lng], {
+        radius: accuracy,
+        fillColor: '#2196f3',
+        color: '#2196f3',
+        weight: 1,
+        fillOpacity: 0.1
+    }).addTo(map);
+
+    // User marker
+    const userIcon = L.divIcon({
+        className: 'user-marker',
+        html: `<div style="background:linear-gradient(135deg,#2196f3,#1565c0);border:3px solid #fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 10px rgba(33,150,243,0.5);">📍</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+    });
+
+    userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+    userMarker.bindPopup('<h3>📍 موقعك الحالي</h3>');
+
+    // Find nearest junction
+    findNearestJunction(lat, lng);
+
+    showStatus('found', `✅ تم تحديد موقعك | دقة ~${Math.round(accuracy)} متر`);
+
+    // Show nav button
+    document.getElementById('navBtn').style.display = 'flex';
+
+    // Center and zoom
+    map.setView([lat, lng], 16);
+}
+
+function onLocationError(error) {
+    const btn = document.getElementById('gpsBtn');
+    btn.classList.remove('pulsing');
+
+    let msg = '❌ ';
+    switch(error.code) {
+        case error.PERMISSION_DENIED: msg += 'تم رفض إذن الوصول للموقع. يرجى تفعيل GPS'; break;
+        case error.POSITION_UNAVAILABLE: msg += 'الموقع غير متوفر حالياً'; break;
+        case error.TIMEOUT: msg += 'انتهى الوقت - حاول مرة أخرى'; break;
+        default: msg += 'خطأ في تحديد الموقع';
+    }
+    showStatus('error', msg);
+}
+
+function showStatus(type, text) {
+    const status = document.getElementById('statusBar');
+    status.className = type;
+    status.innerHTML = text;
+    status.style.display = 'flex';
+    if (type !== 'route') {
+        setTimeout(() => { status.style.display = 'none'; }, 4000);
+    }
+}
+
+function findNearestJunction(lat, lng) {
+    // Find nearest junction using real haversine distance (meters)
+    let minDist = Infinity;
+    let nearestId = null;
+
+    for (const node of nodes) {
+        if (node.type !== 'junction') continue;
+        const d = haversine(lat, lng, node.lat, node.lng);
+        if (d < minDist) {
+            minDist = d;
+            nearestId = node.id;
+        }
+    }
+
+    nearestJunctionId = nearestId;
+
+    // Show route preview
+    const jName = junctionNames[nearestId] || 'موقعك';
+    const approxDist = Math.round(minDist);
+
+    showStatus('route', `
+        <div class="route-title">📍 أقرب نقطة: ${jName}</div>
+        <div class="route-detail">المسافة من أقرب طريق: ~${approxDist}م</div>
+    `);
+}
+
+// ===== NAVIGATION =====
+function startNavigation() {
+    if (nearestJunctionId === null) {
+        alert('الرجاء تحديد موقعك أولاً باستخدام زر "حدد موقعي"');
+        return;
+    }
+
+    // Clear old route
+    clearRoute();
+
+    // Calculate route
+    const route = dijkstraRoute(nearestJunctionId, parkNodeId);
+    currentRoute = route;
+
+    // Draw route with actual path geometry
+    drawRouteOnMap(route.path);
+
+    // Build navigation panel
+    buildNavPanel(route);
+
+    // Show route info (route.distance is already real meters)
+    const distKm = (route.distance / 1000).toFixed(1);
+    const mins = Math.ceil((route.distance / 1000) * 3);
+    const jName = junctionNames[nearestJunctionId];
+
+    showStatus('route', `
+        <div class="route-title">🚗 المسار من ${jName}</div>
+        <div class="route-detail">📏 ~${distKm} كم | ⏱️ ~${mins} دقيقة</div>
+    `);
+
+    // Voice
+    if (voiceEnabled) speakRoute(route);
+
+    // Start watching position
+    startWatchingPosition();
+
+    // Open nav panel
+    if (!navPanelOpen) toggleNavPanel();
+}
+
+function dijkstraRoute(startId, endId) {
+    const dist = {};
+    const prev = {};
+    const visited = new Set();
+
+    for (const node of nodes) {
+        dist[node.id] = Infinity;
+        prev[node.id] = null;
+    }
+    dist[startId] = 0;
+
+    while (visited.size < nodes.length) {
+        let u = null, minDist = Infinity;
+        for (const node of nodes) {
+            if (!visited.has(node.id) && dist[node.id] < minDist) {
+                minDist = dist[node.id];
+                u = node.id;
+            }
+        }
+        if (u === null || u === endId) break;
+        visited.add(u);
+
+        const edges = adjData[u] || [];
+        for (const edge of edges) {
+            const v = edge.to;
+            if (visited.has(v)) continue;
+            const newDist = dist[u] + edge.length;
+            if (newDist < dist[v]) {
+                dist[v] = newDist;
+                prev[v] = { from: u, edge: edge };
+            }
+        }
+    }
+
+    // Reconstruct path with actual geometry
+    const path = [];
+    let node = endId;
+    while (node !== null && prev[node] !== null) {
+        const p = prev[node];
+        const edge = p.edge;
+        const fromNode = nodes.find(n => n.id === p.from);
+        const toNode = nodes.find(n => n.id === node);
+
+        let pathPoints = [];
+        if (edge.path_idx >= 0) {
+            const ap = allPaths.find(p => p.id === edge.path_idx);
+            if (ap) {
+                const firstPt = ap.points[0];
+                const lastPt = ap.points[ap.points.length - 1];
+                const fromDist = Math.abs(firstPt[0] - fromNode.lat) + Math.abs(firstPt[1] - fromNode.lng);
+                const toDist = Math.abs(lastPt[0] - fromNode.lat) + Math.abs(lastPt[1] - fromNode.lng);
+                pathPoints = fromDist < toDist ? ap.points : [...ap.points].reverse();
+            }
+        } else {
+            pathPoints = [[fromNode.lat, fromNode.lng], [toNode.lat, toNode.lng]];
+        }
+
+        path.unshift({
+            from: p.from,
+            to: node,
+            points: pathPoints,
+            pathIdx: edge.path_idx,
+            fromName: fromNode.name,
+            toName: toNode.name,
+            toType: toNode.type
+        });
+
+        node = p.from;
+    }
+
+    return { path: path, distance: dist[endId] };
+}
+
+function drawRouteOnMap(routePath) {
+    const allPoints = [];
+
+    for (const seg of routePath) {
+        const latlngs = seg.points;
+        allPoints.push(...latlngs);
+
+        // Glow layer
+        const glow = L.polyline(latlngs, {
+            color: '#7ee787',
+            weight: 12,
+            opacity: 0.25,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(map);
+        routeLayers.push(glow);
+
+        // Main route
+        const main = L.polyline(latlngs, {
+            color: '#2e7d32',
+            weight: 5,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(map);
+        routeLayers.push(main);
+
+        // Animated dashed overlay
+        const dash = L.polyline(latlngs, {
+            color: '#fff',
+            weight: 2,
+            opacity: 0.6,
+            dashArray: '8, 8',
+            lineCap: 'round'
+        }).addTo(map);
+        routeLayers.push(dash);
+
+        // Animate the dash
+        let offset = 0;
+        function animateDash() {
+            offset -= 1;
+            dash.setStyle({ dashOffset: String(offset) });
+            if (routeLayers.includes(dash)) {
+                requestAnimationFrame(animateDash);
+            }
+        }
+        animateDash();
+
+        // Direction arrows
+        for (let i = 3; i < latlngs.length; i += Math.max(4, Math.floor(latlngs.length / 5))) {
+            const p1 = latlngs[i - 1];
+            const p2 = latlngs[i];
+            const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]) * 180 / Math.PI;
+
+            const arrowIcon = L.divIcon({
+                className: 'route-arrow',
+                html: `<div style="color:#7ee787;font-size:14px;text-shadow:0 1px 3px rgba(0,0,0,0.5);transform:rotate(${angle}deg);">▶</div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+
+            const arrow = L.marker(p2, { icon: arrowIcon, interactive: false }).addTo(map);
+            routeArrowLayers.push(arrow);
+        }
+    }
+
+    // Fit bounds with padding
+    if (allPoints.length > 0) {
+        const bounds = L.latLngBounds(allPoints);
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+    }
+}
+
+function clearRoute() {
+    routeLayers.forEach(l => map.removeLayer(l));
+    routeArrowLayers.forEach(l => map.removeLayer(l));
+    routeLayers = [];
+    routeArrowLayers = [];
+}
+
+function buildNavPanel(route) {
+    const container = document.getElementById('navSteps');
+    let html = '';
+
+    // Start step
+    const startName = junctionNames[nearestJunctionId];
+    html += `
+        <div class="nav-step active">
+            <div class="step-icon start">🚗</div>
+            <div class="step-content">
+                <div class="step-text">انطلق من <strong>${startName}</strong></div>
+                <div class="step-dist">نقطة البداية</div>
+            </div>
+        </div>
+    `;
+
+    // Route steps
+    for (let i = 0; i < route.path.length; i++) {
+        const seg = route.path[i];
+        let icon = '↪️';
+        let iconClass = '';
+        let text = '';
+
+        if (seg.toType === 'park') {
+            icon = '🌳';
+            iconClass = 'destination';
+            text = `لقد وصلت إلى <strong>${seg.toName}</strong>! استمتع بوقتك.`;
+        } else if (seg.pathIdx === -1) {
+            icon = '📍';
+            text = `اتجه نحو <strong>${seg.toName}</strong>`;
+        } else {
+            icon = '➡️';
+            text = `استمر على الطريق نحو <strong>${seg.toName}</strong>`;
+        }
+
+        html += `
+            <div class="nav-step">
+                <div class="step-icon ${iconClass}">${icon}</div>
+                <div class="step-content">
+                    <div class="step-text">${text}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function toggleNavPanel() {
+    navPanelOpen = !navPanelOpen;
+    document.getElementById('navPanel').style.display = navPanelOpen ? 'block' : 'none';
+}
+
+// ===== VOICE =====
+function toggleVoice() {
+    voiceEnabled = !voiceEnabled;
+    const btn = document.getElementById('voiceBtn');
+    btn.classList.toggle('active', voiceEnabled);
+    btn.textContent = voiceEnabled ? '🔊 الصوت مفعل' : '🔊 صوتي';
+    if (voiceEnabled && currentRoute) speakRoute(currentRoute);
+}
+
+function speakRoute(route) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+
+    const startName = junctionNames[nearestJunctionId];
+    const texts = [`ابدأ من ${startName}`];
+
+    for (const seg of route.path) {
+        if (seg.toType === 'park') {
+            texts.push(`لقد وصلت إلى ${seg.toName}. نتمنى لك وقتًا ممتعًا!`);
+        } else {
+            texts.push(`اتجه نحو ${seg.toName}`);
+        }
+    }
+
+    let idx = 0;
+    function speakNext() {
+        if (idx >= texts.length || !voiceEnabled) {
+            document.getElementById('voiceIndicator').style.display = 'none';
+            return;
+        }
+        document.getElementById('voiceIndicator').style.display = 'flex';
+        const utter = new SpeechSynthesisUtterance(texts[idx]);
+        utter.lang = 'ar-SA';
+        utter.rate = 0.85;
+        utter.pitch = 1;
+        utter.onend = () => { idx++; setTimeout(speakNext, 700); };
+        window.speechSynthesis.speak(utter);
+    }
+    speakNext();
+}
+
+// ===== MAP LAYER =====
+function toggleMapLayer() {
+    const btn = event.target;
+    if (currentLayer === 'osm') {
+        map.removeLayer(osmLayer);
+        satelliteLayer.addTo(map);
+        currentLayer = 'satellite';
+        btn.textContent = '🗺️ الشوارع';
+    } else {
+        map.removeLayer(satelliteLayer);
+        osmLayer.addTo(map);
+        currentLayer = 'osm';
+        btn.textContent = '🗺️ القمر الصناعي';
+    }
+}
+
+// ===== PARK DETAILS =====
+function showParkDetails() { document.getElementById('parkModal').style.display = 'flex'; }
+function closeParkModal() { document.getElementById('parkModal').style.display = 'none'; }
+
+// ===== RESET =====
+function resetAll() {
+    clearRoute();
+    if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+    if (userAccuracyCircle) { map.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
+    userPos = null;
+    currentRoute = null;
+    nearestJunctionId = null;
+    voiceEnabled = false;
+    navPanelOpen = false;
+
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+
+    document.getElementById('navBtn').style.display = 'none';
+    document.getElementById('navPanel').style.display = 'none';
+    document.getElementById('voiceIndicator').style.display = 'none';
+    document.getElementById('voiceBtn').classList.remove('active');
+    document.getElementById('voiceBtn').textContent = '🔊 صوتي';
+    document.getElementById('gpsBtn').classList.remove('pulsing');
+
+    window.speechSynthesis && window.speechSynthesis.cancel();
+
+    const parkNode = nodes.find(n => n.id === parkNodeId);
+    map.setView([parkNode.lat, parkNode.lng], 15);
+}
+
+function startWatchingPosition() {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            if (userMarker) {
+                userMarker.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+            }
+            if (userAccuracyCircle) {
+                userAccuracyCircle.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+                userAccuracyCircle.setRadius(pos.coords.accuracy);
+            }
+        },
+        null,
+        { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeParkModal();
+        if (navPanelOpen) toggleNavPanel();
+    }
+});
+</script>
 </body>
-
 </html>
